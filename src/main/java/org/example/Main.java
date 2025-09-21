@@ -1,76 +1,154 @@
 package org.example;
 
-import javax.swing.*;
-import java.awt.*;
-import java.util.*;
+import javax.swing.JButton;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTextField;
+import javax.swing.SwingUtilities;
+import javax.swing.Timer;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
+import java.awt.CardLayout;
 
+/**
+ * Main class represents a Swing-based sorting application.
+ * It generates random numbers, displays them as buttons, and allows
+ * the user to sort them with a visual highlight.
+ */
 public class Main extends JFrame {
 
-    private JPanel cards;
-    private CardLayout cardLayout;
+    private static final String INTRO_PANEL = "INTRO";
+    private static final String SORT_PANEL = "SORT";
+
+    private static final int MAX_COLUMN_SIZE = 10;
+    private static final int MAX_RANDOM_VALUE = 1000;
+    private static final int SMALL_NUMBER_THRESHOLD = 30;
+
+    private final List<JButton> numberButtons = new ArrayList<>();
+    private static final int SORT_DELAY_MS = 250;
+    private static final Dimension BUTTON_SIZE = new Dimension(60, 30);
+    private static final Insets BUTTON_INSETS = new Insets(5, 5, 5, 5);
+
+    private static final int GRID_PROMPT_X = 0;
+    private static final int GRID_PROMPT_Y = 0;
+    private static final int GRID_INPUT_X = 1;
+    private static final int GRID_INPUT_Y = 0;
+    private static final int GRID_BUTTON_X = 0;
+    private static final int GRID_BUTTON_Y = 1;
+    private static final int GRID_BUTTON_WIDTH = 2;
+
+    private static final int ANIMATION_STEP_DELAY_MS = 30;
+    private static final int ANIMATION_TOTAL_STEPS = 10;
+
+    private final JPanel cards;
+    private final CardLayout cardLayout;
     private JTextField numberInput;
     private JPanel numberButtonsPanel;
-    private JButton sortBtn, resetBtn;
-    private List<Integer> numbersList = new ArrayList<>();
+
+    private final List<Integer> numbersList = new ArrayList<>();
+    private final Random random = new Random();
     private boolean descending = true;
     private int totalNumbers;
 
+    private volatile boolean sortingActive = false;
+    private Thread sortingThread;
+
+    /**
+     * Constructs the main frame of the sorting application.
+     * Sets up intro and sort panels and initializes UI.
+     */
     public Main() {
         setTitle("Sorting App");
         setDefaultCloseOperation(EXIT_ON_CLOSE);
-        setSize(800, 600);
+        setSize(1200, 800);
         setLocationRelativeTo(null);
 
         cardLayout = new CardLayout();
         cards = new JPanel(cardLayout);
-        cards.add(buildIntroPanel(), "INTRO");
-        cards.add(buildSortPanel(), "SORT");
+        cards.add(buildIntroPanel(), INTRO_PANEL);
+        cards.add(buildSortPanel(), SORT_PANEL);
 
         add(cards);
     }
 
+    /**
+     * Builds the introductory panel with a label, input field and Enter button.
+     *
+     * @return JPanel representing the intro panel
+     */
     private JPanel buildIntroPanel() {
         JPanel panel = new JPanel(new GridBagLayout());
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(5,5,5,5);
+        GridBagConstraints constraints = new GridBagConstraints();
+        constraints.insets = BUTTON_INSETS;
 
-        JLabel prompt = new JLabel("Number of values:");
+        JLabel promptLabel = new JLabel("Number of values:");
         numberInput = new JTextField(10);
-        JButton enterBtn = new JButton("Enter");
+        JButton enterButton = new JButton("Enter");
 
-        enterBtn.addActionListener(e -> handleEnter());
+        enterButton.addActionListener(e -> handleEnter());
         numberInput.addActionListener(e -> handleEnter());
 
-        gbc.gridx = 0; gbc.gridy = 0; panel.add(prompt, gbc);
-        gbc.gridx = 1; panel.add(numberInput, gbc);
-        gbc.gridx = 0; gbc.gridy = 1; gbc.gridwidth = 2; panel.add(enterBtn, gbc);
+        constraints.gridx = GRID_PROMPT_X;
+        constraints.gridy = GRID_PROMPT_Y;
+        panel.add(promptLabel, constraints);
+
+        constraints.gridx = GRID_INPUT_X;
+        constraints.gridy = GRID_INPUT_Y;
+        panel.add(numberInput, constraints);
+
+        constraints.gridx = GRID_BUTTON_X;
+        constraints.gridy = GRID_BUTTON_Y;
+        constraints.gridwidth = GRID_BUTTON_WIDTH;
+        panel.add(enterButton, constraints);
 
         return panel;
     }
 
+    /**
+     * Builds the sorting panel containing number buttons and control buttons (Sort, Reset).
+     *
+     * @return JPanel representing the sort panel
+     */
     private JPanel buildSortPanel() {
         JPanel panel = new JPanel(new BorderLayout());
-        numberButtonsPanel = new JPanel();
-        numberButtonsPanel.setLayout(new GridLayout(1,1,10,10));
-
+        numberButtonsPanel = new JPanel(new GridBagLayout());
         JScrollPane scrollPane = new JScrollPane(numberButtonsPanel);
 
-        JPanel controls = new JPanel();
-        sortBtn = new JButton("Sort");
-        resetBtn = new JButton("Reset");
+        JPanel controlsPanel = new JPanel();
+        JButton sortButton = new JButton("Sort");
+        JButton resetButton = new JButton("Reset");
 
-        sortBtn.addActionListener(e -> runSort());
-        resetBtn.addActionListener(e -> cardLayout.show(cards, "INTRO"));
+        sortButton.addActionListener(e -> runSort());
+        resetButton.addActionListener(e -> {
+            sortingActive = false;
+            if (sortingThread != null && sortingThread.isAlive()) {
+                sortingThread.interrupt();
+            }
+            cardLayout.show(cards, INTRO_PANEL);
+        });
 
-        controls.add(sortBtn);
-        controls.add(resetBtn);
+        controlsPanel.add(sortButton);
+        controlsPanel.add(resetButton);
 
         panel.add(scrollPane, BorderLayout.CENTER);
-        panel.add(controls, BorderLayout.SOUTH);
+        panel.add(controlsPanel, BorderLayout.SOUTH);
         return panel;
     }
 
+    /**
+     * Handles the Enter button click or input action.
+     * Parses input value and generates random numbers for sorting.
+     */
     private void handleEnter() {
         try {
             totalNumbers = Integer.parseInt(numberInput.getText());
@@ -78,86 +156,226 @@ public class Main extends JFrame {
                 JOptionPane.showMessageDialog(this, "Enter a positive number!");
                 return;
             }
-            generateNumbers();
+            generateNumbers(totalNumbers);
             refreshNumbersPanel();
-            cardLayout.show(cards, "SORT");
+            cardLayout.show(cards, SORT_PANEL);
         } catch (NumberFormatException ex) {
             JOptionPane.showMessageDialog(this, "Invalid number!");
         }
     }
 
-    private void generateNumbers() {
+    /**
+     * Generates a list of random numbers.
+     * Ensures at least one number is less than or equal to SMALL_NUMBER_THRESHOLD.
+     *
+     * @param size the number of random numbers to generate
+     */
+    private void generateNumbers(int size) {
         numbersList.clear();
-        Random rnd = new Random();
-        boolean hasSmall = false;
+        boolean hasSmallNumber = false;
 
-        for (int i = 0; i < totalNumbers; i++) {
-            int val = rnd.nextInt(1000) + 1;
-            numbersList.add(val);
-            if (val <= 30) hasSmall = true;
+        for (int i = 0; i < size; i++) {
+            int value = random.nextInt(MAX_RANDOM_VALUE) + 1;
+            numbersList.add(value);
+            if (value <= SMALL_NUMBER_THRESHOLD) hasSmallNumber = true;
         }
-        if (!hasSmall) {
-            numbersList.set(rnd.nextInt(totalNumbers), rnd.nextInt(30)+1);
+
+        if (!hasSmallNumber && size > 0) {
+            numbersList.set(random.nextInt(size), random.nextInt(SMALL_NUMBER_THRESHOLD) + 1);
         }
     }
 
+    /**
+     * Refreshes the number buttons panel according to the current numbersList.
+     * Arranges numbers in columns of MAX_COLUMN_SIZE.
+     */
     private void refreshNumbersPanel() {
         numberButtonsPanel.removeAll();
-        int cols = (int)Math.ceil(numbersList.size()/10.0);
-        numberButtonsPanel.setLayout(new GridLayout(0, cols, 10, 10));
+        numberButtons.clear();
 
-        for (int n : numbersList) {
-            JButton btn = new JButton(String.valueOf(n));
-            btn.addActionListener(e -> handleNumberClick(n));
-            numberButtonsPanel.add(btn);
+        GridBagConstraints constraints = new GridBagConstraints();
+        constraints.insets = BUTTON_INSETS;
+        constraints.fill = GridBagConstraints.NONE;
+        constraints.anchor = GridBagConstraints.NORTHWEST;
+
+        int row = 0;
+        int col = 0;
+
+        for (int index = 0; index < numbersList.size(); index++) {
+            int value = numbersList.get(index);
+            JButton numberButton = new JButton(String.valueOf(value));
+            numberButton.setPreferredSize(BUTTON_SIZE);
+            numberButton.setMinimumSize(BUTTON_SIZE);
+            numberButton.setMaximumSize(BUTTON_SIZE);
+
+            int finalIndex = index;
+            numberButton.addActionListener(e -> handleNumberClick(numbersList.get(finalIndex)));
+
+            constraints.gridx = col;
+            constraints.gridy = row;
+            numberButtonsPanel.add(numberButton, constraints);
+            numberButtons.add(numberButton);
+
+            row++;
+            if (row >= MAX_COLUMN_SIZE) {
+                row = 0;
+                col++;
+            }
         }
+
         numberButtonsPanel.revalidate();
         numberButtonsPanel.repaint();
     }
 
+    /**
+     * Handles a click on a number button.
+     * If value <= SMALL_NUMBER_THRESHOLD, generates new numbers of that size.
+     *
+     * @param value the number on the clicked button
+     */
     private void handleNumberClick(int value) {
-        if (value <= 30) {
-            generateNumbers();
+        if (value <= SMALL_NUMBER_THRESHOLD) {
+            generateNumbers(value);
             refreshNumbersPanel();
         } else {
-            JOptionPane.showMessageDialog(this, "Please select a value smaller or equal to 30.");
+            JOptionPane.showMessageDialog(this,
+                    "Please select a value smaller or equal to " + SMALL_NUMBER_THRESHOLD + ".");
         }
     }
 
+    /**
+     * Starts sorting numbers in a separate thread using quicksort.
+     * Prevents multiple simultaneous sorts.
+     */
     private void runSort() {
-        new Thread(() -> {
-            quickSort(0, numbersList.size()-1);
-            descending = !descending;
-        }).start();
+        if (sortingActive) return;
+        sortingActive = true;
+
+        sortingThread = new Thread(() -> {
+            try {
+                quickSort(0, numbersList.size() - 1);
+                descending = !descending;
+            } finally {
+                sortingActive = false;
+            }
+        });
+        sortingThread.start();
     }
 
+    /**
+     * Recursively sorts numbers using quicksort algorithm.
+     *
+     * @param low  the starting index
+     * @param high the ending index
+     */
     private void quickSort(int low, int high) {
-        if (low < high) {
-            int pivotIndex = partition(low, high);
-            SwingUtilities.invokeLater(this::refreshNumbersPanel);
-            try { Thread.sleep(250); } catch (InterruptedException ignored) {}
-            quickSort(low, pivotIndex-1);
-            quickSort(pivotIndex+1, high);
+        if (!sortingActive || Thread.currentThread().isInterrupted()) return;
+        if (low >= high) return;
+
+        int pivotIndex = partition(low, high);
+        if (!sortingActive || Thread.currentThread().isInterrupted()) return;
+
+        try {
+            Thread.sleep(SORT_DELAY_MS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return;
         }
+
+        quickSort(low, pivotIndex - 1);
+        quickSort(pivotIndex + 1, high);
     }
 
+    /**
+     * Partitions the numbers list for quicksort and highlights swapped buttons.
+     *
+     * @param low  the starting index
+     * @param high the ending index
+     * @return the partition index
+     */
     private int partition(int low, int high) {
-        int pivot = numbersList.get(high);
+        int pivotValue = numbersList.get(high);
         int i = low - 1;
+
         for (int j = low; j < high; j++) {
-            if (descending ? numbersList.get(j) > pivot : numbersList.get(j) < pivot) {
+            if (!sortingActive || Thread.currentThread().isInterrupted()) return i + 1;
+
+            boolean condition = descending ? numbersList.get(j) > pivotValue : numbersList.get(j) < pivotValue;
+            if (condition) {
                 i++;
-                int temp = numbersList.get(i);
-                numbersList.set(i, numbersList.get(j));
-                numbersList.set(j, temp);
+                swapAndHighlight(i, j);
+
+                if (!sortingActive || Thread.currentThread().isInterrupted()) return i;
             }
         }
-        int temp = numbersList.get(i+1);
-        numbersList.set(i+1, numbersList.get(high));
-        numbersList.set(high, temp);
-        return i+1;
+        swapAndHighlight(i + 1, high);
+        return i + 1;
     }
 
+    /**
+     * Swaps two numbers in the list and visually highlights the swap on buttons.
+     *
+     * @param i index of first number
+     * @param j index of second number
+     */
+    private void swapAndHighlight(int i, int j) {
+        int valueI = numbersList.get(i);
+        numbersList.set(i, numbersList.get(j));
+        numbersList.set(j, valueI);
+
+        SwingUtilities.invokeLater(() -> {
+            if (i < numberButtons.size() && j < numberButtons.size()) {
+                JButton buttonI = numberButtons.get(i);
+                JButton buttonJ = numberButtons.get(j);
+
+                buttonI.setText(String.valueOf(numbersList.get(i)));
+                buttonJ.setText(String.valueOf(numbersList.get(j)));
+
+                Color originalColorI = buttonI.getBackground();
+                Color originalColorJ = buttonJ.getBackground();
+
+                buttonI.setBackground(Color.YELLOW);
+                buttonJ.setBackground(Color.YELLOW);
+
+                Timer timer = new Timer(ANIMATION_STEP_DELAY_MS, null);
+                final int[] currentStep = {0};
+
+                timer.addActionListener(e -> {
+                    float ratio = (float) currentStep[0] / ANIMATION_TOTAL_STEPS;
+
+                    buttonI.setBackground(interpolate(Color.YELLOW, originalColorI, ratio));
+                    buttonJ.setBackground(interpolate(Color.YELLOW, originalColorJ, ratio));
+
+                    currentStep[0]++;
+                    if (currentStep[0] > ANIMATION_TOTAL_STEPS) {
+                        timer.stop();
+                        buttonI.setBackground(originalColorI);
+                        buttonJ.setBackground(originalColorJ);
+                    }
+                });
+                timer.start();
+            }
+        });
+    }
+
+    /**
+     * Interpolates between two colors for animation effect.
+     *
+     * @param start  color
+     * @param end  color
+     * @param ratio  between 0.0 and 1.0
+     * @return interpolated color
+     */
+    private Color interpolate(Color start, Color end, float ratio) {
+        int red = (int) (start.getRed() + ratio * (end.getRed() - start.getRed()));
+        int green = (int) (start.getGreen() + ratio * (end.getGreen() - start.getGreen()));
+        int blue = (int) (start.getBlue() + ratio * (end.getBlue() - start.getBlue()));
+        return new Color(red, green, blue);
+    }
+
+    /**
+     * Main method. Launches the sorting application.
+     */
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> new Main().setVisible(true));
     }
