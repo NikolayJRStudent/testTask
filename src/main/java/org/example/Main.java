@@ -313,7 +313,7 @@ public class Main extends JFrame {
     }
 
     /**
-     * Swaps two numbers in the list and visually highlights the swap on buttons.
+     * Swaps two numbers in the list and visually highlights only the pair being swapped.
      *
      * @param i index of first number
      * @param j index of second number
@@ -331,29 +331,24 @@ public class Main extends JFrame {
                 buttonI.setText(String.valueOf(numbersList.get(i)));
                 buttonJ.setText(String.valueOf(numbersList.get(j)));
 
-                Color originalColorI = buttonI.getBackground();
-                Color originalColorJ = buttonJ.getBackground();
 
                 buttonI.setBackground(Color.YELLOW);
                 buttonJ.setBackground(Color.YELLOW);
+            }
+        });
 
-                Timer timer = new Timer(ANIMATION_STEP_DELAY_MS, null);
-                final int[] currentStep = {0};
+        try {
+            Thread.sleep(SORT_DELAY_MS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        SwingUtilities.invokeLater(() -> {
+            if (i < numberButtons.size() && j < numberButtons.size()) {
+                JButton buttonI = numberButtons.get(i);
+                JButton buttonJ = numberButtons.get(j);
 
-                timer.addActionListener(e -> {
-                    float ratio = (float) currentStep[0] / ANIMATION_TOTAL_STEPS;
-
-                    buttonI.setBackground(interpolate(Color.YELLOW, originalColorI, ratio));
-                    buttonJ.setBackground(interpolate(Color.YELLOW, originalColorJ, ratio));
-
-                    currentStep[0]++;
-                    if (currentStep[0] > ANIMATION_TOTAL_STEPS) {
-                        timer.stop();
-                        buttonI.setBackground(originalColorI);
-                        buttonJ.setBackground(originalColorJ);
-                    }
-                });
-                timer.start();
+                buttonI.setBackground(null);
+                buttonJ.setBackground(null);
             }
         });
     }
