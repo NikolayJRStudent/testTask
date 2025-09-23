@@ -8,7 +8,6 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
-import javax.swing.Timer;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
@@ -46,9 +45,6 @@ public class Main extends JFrame {
     private static final int GRID_BUTTON_X = 0;
     private static final int GRID_BUTTON_Y = 1;
     private static final int GRID_BUTTON_WIDTH = 2;
-
-    private static final int ANIMATION_STEP_DELAY_MS = 30;
-    private static final int ANIMATION_TOTAL_STEPS = 10;
 
     private final JPanel cards;
     private final CardLayout cardLayout;
